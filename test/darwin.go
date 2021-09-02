@@ -146,8 +146,10 @@ return 0;
 /*
 #include <stdlib.h>
 */
-import "C"
+//import "C"
+
 import (
+	"C"
 	"bufio"
 	"bytes"
 	"encoding/base64"

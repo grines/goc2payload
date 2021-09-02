@@ -1,6 +1,6 @@
 package main
 
 func main() {
-	c2 = "goc2_server"
-	Build(c2)
+	c2 := "goc2_server"
+	Builder(c2)
 }
