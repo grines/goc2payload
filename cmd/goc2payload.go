@@ -1,4 +1,4 @@
-package goc2agent
+package goc2payload
 
 import (
 	"flag"

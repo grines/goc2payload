@@ -1,5 +1,5 @@
 package main
 
 func main() {
-	goc2agent.Start()
+	goc2payload.Start()
 }
