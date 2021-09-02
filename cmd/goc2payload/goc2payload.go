@@ -3,7 +3,7 @@ package goc2payload
 import (
 	"flag"
 
-	"github.com/grines/goc2-agent/pkg/linux"
+	"github.com/grines/goc2payload/pkg/linux"
 )
 
 var (
