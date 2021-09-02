@@ -1,3 +1,5 @@
+github.com/JustinTimperio/gomap v1.0.0 h1:Pi3k0mpA70U8ln2NplvnzRut/6AqCQEzCmYw5XZuhw4=
+github.com/JustinTimperio/gomap v1.0.0/go.mod h1:VBqui7Nb9LVK7v2aBtl8JjhNbc+67NnUjpvTqdgfAUw=
 github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
 github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/lithammer/shortuuid v1.0.0 h1:kdcbvjGVEgqeVeDIRtnANOi/F6ftbKrtbxY+cjQmK1Q=
