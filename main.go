@@ -1,7 +1,6 @@
-// +build linux
-
 package main
 
 func main() {
-	Build()
+	c2 = "goc2_server"
+	Build(c2)
 }
