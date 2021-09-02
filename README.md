@@ -1,6 +1,9 @@
-# goc2-agent
+# goc2payload
 
 Payloads for goc2
+
+go get github.com/grines/goc2payload
+go build main.go --type linux
 
 # MacOs
 - [X] Utilizing chrome dev tools to steal coookies over WSS
