@@ -51,7 +51,7 @@ const (
 	layoutStr = "01/02/2006 15:04:05"
 )
 
-func List(path string) ([]string) {
+func List(path string) []string {
 	data := []string{}
 	//var users []string
 
