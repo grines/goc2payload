@@ -14,11 +14,11 @@ then
 else
     mkdir /tmp/bin
 fi
-
+ESC=$(printf '%s\n' "$1" | sed -e 's/[]\/$*.^[]/\\&/g');
 if [ "$(uname)" == "Darwin" ]; then
-    sed -i "" "s/goc2_server/https:\/\/$1/" main.go     
+    sed -i "" "s/goc2_server/$ESC/" main.go     
 elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
-    sed -i "s/goc2_server/https:\/\/$1/" main.go
+    sed -i "s/goc2_server/$ESC/" main.go
 fi
 
 # Now we build
@@ -26,9 +26,9 @@ go build -o /tmp/bin/payload
 
 # Change the string back to original.
 if [ "$(uname)" == "Darwin" ]; then
-    sed -i "" "s/https:\/\/$1/goc2_server/" main.go    
+    sed -i "" "s/$ESC/goc2_server/" main.go    
 elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
-    sed -i "s/https:\/\/$1/goc2_server/" main.go
+    sed -i "s/$ESC/goc2_server/" main.go
 fi
 
 # Done
